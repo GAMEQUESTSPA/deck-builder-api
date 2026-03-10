@@ -90,7 +90,17 @@ def load_catalog():
                         for item in page_data:
                             product = item.get('product', {})
                             if product.get('stock', 0) > 0:
-                                all_products.append(product)
+                                # Guardar solo campos necesarios para reducir memoria
+                                slim = {
+                                    'id': product.get('id'),
+                                    'name': product.get('name', ''),
+                                    'price': product.get('price', 0),
+                                    'stock': product.get('stock', 0),
+                                    'status': product.get('status', ''),
+                                    'images': product.get('images', [])[:1],  # solo primera imagen
+                                    'fields': product.get('fields', []),
+                                }
+                                all_products.append(slim)
                 except Exception as e:
                     print(f'[Catalog] Error en página: {e}')
 
