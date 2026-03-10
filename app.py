@@ -131,20 +131,23 @@ def get_catalog():
 
 # ─── BÚSQUEDA ─────────────────────────────────────────────────
 def search_in_index(name, index):
-    """Busca una carta por nombre en el índice."""
+    """Busca una carta por nombre en el índice — solo match exacto."""
     key = name.strip().lower()
 
-    # Búsqueda exacta primero
+    # Búsqueda exacta
     if key in index:
         return index[key]
 
-    # Búsqueda parcial
-    results = []
-    for base_name, products in index.items():
-        if base_name.startswith(key) or key.startswith(base_name):
-            results.extend(products)
+    # Búsqueda con limpieza de paréntesis
+    # Ej: "Griselbrand (Retro Frame)" → buscar "griselbrand"
+    import re
+    key_clean = re.sub(r'\s*\([^)]*\)', '', key).strip()
+    if key_clean != key and key_clean in index:
+        return index[key_clean]
 
-    return results if results else None
+    # No hacer búsqueda parcial — evita matches incorrectos
+    # ej: "Ornithopter" NO debe matchear "Ornithopter of Paradise"
+    return None
 
 
 # ─── ENDPOINTS ────────────────────────────────────────────────
