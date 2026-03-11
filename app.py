@@ -89,9 +89,8 @@ def load_catalog():
                     if isinstance(page_data, list):
                         for item in page_data:
                             product = item.get('product', {})
-                            # Filtrar por status available (no por stock)
-                            # porque Jumpseller reduce stock cuando está en un carrito activo
-                            if product.get('status') == 'available':
+                            # Filtrar por stock > 0 Y status available
+                            if product.get('stock', 0) > 0 and product.get('status') == 'available':
                                 slim = {
                                     'id': product.get('id'),
                                     'name': product.get('name', ''),
