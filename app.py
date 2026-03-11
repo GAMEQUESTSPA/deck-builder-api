@@ -89,15 +89,16 @@ def load_catalog():
                     if isinstance(page_data, list):
                         for item in page_data:
                             product = item.get('product', {})
-                            if product.get('stock', 0) > 0:
-                                # Guardar solo campos necesarios para reducir memoria
+                            # Filtrar por status available (no por stock)
+                            # porque Jumpseller reduce stock cuando está en un carrito activo
+                            if product.get('status') == 'available':
                                 slim = {
                                     'id': product.get('id'),
                                     'name': product.get('name', ''),
                                     'price': product.get('price', 0),
                                     'stock': product.get('stock', 0),
                                     'status': product.get('status', ''),
-                                    'images': product.get('images', [])[:1],  # solo primera imagen
+                                    'images': product.get('images', [])[:1],
                                     'fields': product.get('fields', []),
                                 }
                                 all_products.append(slim)
