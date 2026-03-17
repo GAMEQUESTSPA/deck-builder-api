@@ -97,7 +97,7 @@ def load_catalog(force_refresh=False):
             return
         catalog_cache['loading'] = True
 
-    # Si no hay catálogo en memoria, intentar cargar desde disco primero
+    # Si no hay catálogo en memoria (y no es force_refresh), cargar desde disco
     if not catalog_cache['products'] and not force_refresh:
         disk_products = load_catalog_from_disk()
         if disk_products:
@@ -284,12 +284,27 @@ def search():
 
 @app.route('/reload', methods=['POST'])
 def reload_catalog():
-    """Fuerza una recarga del catálogo (útil para pruebas)."""
-    with cache_lock:
-        catalog_cache['loaded_at'] = 0  # invalida el caché
-    thread = threading.Thread(target=load_catalog, daemon=True)
+    """Fuerza una recarga del catálogo — carga disco inmediatamente, actualiza en background."""
+    # 1. Cargar desde disco inmediatamente si existe
+    disk_products = load_catalog_from_disk()
+    if disk_products:
+        index = build_index(disk_products)
+        with cache_lock:
+            catalog_cache['products'] = disk_products
+            catalog_cache['index'] = index
+            catalog_cache['loaded_at'] = time.time()
+            catalog_cache['loading'] = False
+        print(f'[Reload] Cargado desde disco: {len(disk_products)} productos')
+    else:
+        # Sin disco: limpiar para forzar recarga
+        with cache_lock:
+            catalog_cache['loaded_at'] = 0
+            catalog_cache['products'] = []
+
+    # 2. Descargar fresco en background
+    thread = threading.Thread(target=load_catalog, args=(True,), daemon=True)
     thread.start()
-    return jsonify({'message': 'Recarga iniciada'})
+    return jsonify({'message': 'Recarga iniciada', 'from_disk': bool(disk_products)})
 
 
 # ─── INICIO ───────────────────────────────────────────────────
