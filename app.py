@@ -80,13 +80,26 @@ def fetch_page(page):
 
 
 def build_index(products):
-    """Construye índice por nombre base (antes del primer |)."""
+    """Construye índice por nombre base — soporta cartas de doble cara (//)."""
     index = {}
     for p in products:
         base = p['name'].split('|')[0].strip().lower()
+        
+        # Indexar nombre completo
         if base not in index:
             index[base] = []
         index[base].append(p)
+        
+        # Si es carta de doble cara (contiene //), indexar cada mitad también
+        if '//' in base:
+            parts = [part.strip() for part in base.split('//')]
+            for part in parts:
+                if part and part != base:
+                    if part not in index:
+                        index[part] = []
+                    if p not in index[part]:
+                        index[part].append(p)
+    
     return index
 
 
