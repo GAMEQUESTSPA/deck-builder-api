@@ -172,6 +172,28 @@ def health():
     })
 
 
+@app.route('/warmup', methods=['GET'])
+def warmup():
+    """Endpoint para UptimeRobot — mantiene el catálogo en memoria."""
+    index = get_catalog()
+    cached = len(catalog_cache['products'])
+    loading = catalog_cache['loading']
+    
+    # Buscar Sol Ring para verificar que el catálogo está funcional
+    results = search_in_index('sol ring', index) if index else None
+    found = len(results) if results else 0
+    
+    # UptimeRobot busca la palabra "ok" en la respuesta
+    status = 'ok' if cached > 1000 and found > 0 else 'loading'
+    
+    return jsonify({
+        'status': status,
+        'products_cached': cached,
+        'loading': loading,
+        'sol_ring_versions': found
+    })
+
+
 @app.route('/search', methods=['POST'])
 def search():
     """
