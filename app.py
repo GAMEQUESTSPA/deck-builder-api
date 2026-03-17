@@ -17,6 +17,11 @@ MAX_WORKERS         = 10    # páginas en paralelo
 CACHE_TTL_SECONDS   = 7200  # 2 horas
 
 # ─── CACHÉ EN MEMORIA ─────────────────────────────────────────
+import os
+import json
+
+CACHE_FILE = '/tmp/catalog_cache.json'
+
 catalog_cache = {
     'products': [],   # lista de productos con stock
     'index': {},      # dict: nombre_base → [productos]
@@ -24,6 +29,36 @@ catalog_cache = {
     'loading': False  # flag para evitar cargas simultáneas
 }
 cache_lock = threading.Lock()
+
+def save_catalog_to_disk(products):
+    """Guarda el catálogo en disco para sobrevivir reinicios."""
+    try:
+        with open(CACHE_FILE, 'w') as f:
+            json.dump({
+                'products': products,
+                'saved_at': time.time()
+            }, f)
+        print(f'[Catalog] Guardado en disco: {len(products)} productos')
+    except Exception as e:
+        print(f'[Catalog] Error guardando en disco: {e}')
+
+def load_catalog_from_disk():
+    """Carga el catálogo desde disco si existe y es reciente (<24h)."""
+    try:
+        if not os.path.exists(CACHE_FILE):
+            return None
+        with open(CACHE_FILE, 'r') as f:
+            data = json.load(f)
+        age_hours = (time.time() - data.get('saved_at', 0)) / 3600
+        if age_hours > 24:
+            print(f'[Catalog] Caché en disco muy antiguo ({age_hours:.1f}h), ignorando')
+            return None
+        products = data.get('products', [])
+        print(f'[Catalog] Cargado desde disco: {len(products)} productos ({age_hours:.1f}h de antigüedad)')
+        return products
+    except Exception as e:
+        print(f'[Catalog] Error cargando desde disco: {e}')
+        return None
 
 
 # ─── CARGA DEL CATÁLOGO ───────────────────────────────────────
@@ -55,15 +90,27 @@ def build_index(products):
     return index
 
 
-def load_catalog():
+def load_catalog(force_refresh=False):
     """Carga todo el catálogo de Jumpseller con stock > 0."""
     with cache_lock:
         if catalog_cache['loading']:
             return
         catalog_cache['loading'] = True
 
+    # Si no hay catálogo en memoria, intentar cargar desde disco primero
+    if not catalog_cache['products'] and not force_refresh:
+        disk_products = load_catalog_from_disk()
+        if disk_products:
+            index = build_index(disk_products)
+            with cache_lock:
+                catalog_cache['products'] = disk_products
+                catalog_cache['index'] = index
+                catalog_cache['loaded_at'] = time.time()
+            print(f'[Catalog] Usando caché del disco mientras se actualiza en background')
+            # Continuar para actualizar en background (no retornar)
+
     try:
-        print('[Catalog] Iniciando carga...')
+        print('[Catalog] Iniciando descarga desde Jumpseller...')
 
         # Total de productos
         r = requests.get(
@@ -116,6 +163,9 @@ def load_catalog():
             catalog_cache['loading'] = False
 
         print(f'[Catalog] Carga completa: {len(all_products)} productos con stock')
+        
+        # Guardar en disco para el próximo reinicio
+        save_catalog_to_disk(all_products)
 
     except Exception as e:
         print(f'[Catalog] Error en carga: {e}')
